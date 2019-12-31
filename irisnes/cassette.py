@@ -26,8 +26,12 @@ class Cassette:
             lb[i] = list(map(int,lb[i]))
         sprite_image_data = []
         for i in range(len(la)):
-            sprite_image_data.append(list(map(sum,zip(la[i],lb[i]))))
+            sprite_image_data.append([a+b*2 for a,b in zip(la[i],lb[i])])
         return(sprite_image_data)
+
+
+    def single_sprite_to_image(self, n):
+        Image.fromarray(np.uint8((self.sprite(n)))*100).save('sprite_{}.png'.format(n))
 
     def sprite_to_image(self):
         tmp = [[] for _ in range(11)]
@@ -38,4 +42,4 @@ class Cassette:
         tmp[10] = np.hstack([tmp[10],np.zeros((8,304))])
         image = np.vstack(tmp)
         image *= 100
-        Image.fromarray(np.uint8(image)).save('image.png')
+        Image.fromarray(np.uint8(image)).save('sprite.png')
