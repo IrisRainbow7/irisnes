@@ -2,4 +2,5 @@ __pycache__/
 /*.nes
 /*.png
 /irisnes/__pycache__/
+/tests/__pycache__/
 *.swp

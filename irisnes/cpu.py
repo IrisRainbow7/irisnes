@@ -1,13 +1,18 @@
-
+import time
 
 class CPU:
     def __init__(self, nes):
         self.nes = nes
         self.bus = self.nes.cpu_bus
-        self.set_default_registers()
-        self.memory = []
         self.program_memory = self.nes.cassette.program_rom
+        self.memory = []
         self.wram = [0]*0x800
+        self.reset()
+        self.t1=[]
+        self.t2=[]
+        self.t3=[]
+        self.t4=[]
+
 
     def set_default_registers(self):
         self.registers = {
@@ -48,33 +53,34 @@ class CPU:
         ２バイト読み込み
         """
         if address in list(range(0x8000,0xFFFF)):
-            lower_address = address - 0x8000
+            lower_address = address
             upper_address = lower_address + 1
             return(self.read(upper_address)*0x100 + self.read(lower_address))
         else:
             return(0x0000)
 
     def fetch_word(self):
+        lower = self.read(self.registers['PC'])
         self.registers['PC'] += 1
-        upper = self.read(self.registers['PC']-1)
+        upper = self.read(self.registers['PC'])
         self.registers['PC'] += 1
-        lower = self.read(self.registers['PC']-1)
         return(upper*0x100 + lower)
 
     def read(self, address):
-        if address in list(range(0x8000,0xFFFF)):
+        if 0x8000 <= address and address <= 0xFFFF:
             return(self.program_memory[address-0x8000])
-        elif address in list(range(0,0x7FF)): #WRAM
+        elif address <= 0x7FF: #WRAM
             return(self.wram[address])
-        elif address in list(range(0x800,0x1FFF)): #WRAMミラー
+        elif 0x800 <= address and address <= 0x1FFF: #WRAMミラー
             return(self.wram[address-0x800])
         else:
             return(0x0000)
 
     def write(self,address, data):
         if address in list(range(0,0x7FF)): #WRAM
-            wram[address] = data
-        pass
+            self.wram[address] = data
+        elif address in list(range(0x800,0x1FFF)): #WRAMミラー
+            self.wram[address-0x800] = data
 
     def push(self, data):
         self.write(0x100 | self.registers['SP'], data)
@@ -104,23 +110,25 @@ class CPU:
         if addressing == 'accumulator': return()
         elif addressing == 'implied': return()
         elif addressing == 'immediate': return(self.fetch())
-        elif addressing == 'zeroPage': return(self.fetch()*0x100)
-        elif addressing == 'zeroPageX': return((self.fetch()+self.registers['X'])*0x00)
-        elif addressing == 'zeroPageY': return((self.fetch()+self.registers['Y'])*0x00)
+        elif addressing == 'zeroPage': return(self.fetch())
+        elif addressing == 'zeroPageX': return(self.fetch()+self.registers['X'])
+        elif addressing == 'zeroPageY': return(self.fetch()+self.registers['Y'])
         elif addressing == 'absolute': return(self.fetch_word())
         elif addressing == 'absoluteX': return(self.fetch_word()+self.registers['X'])
         elif addressing == 'absoluteY': return(self.fetch_word()+self.registers['Y'])
+        elif addressing == 'relative': return(self.fetch()+self.fetch())
         elif addressing == 'preIndexedIndirect':
             address = self.fetch()+self.registers['X']
             return(self.read(address)+self.read(address+1)*0x00)
         elif addressing == 'postIndexedIndirect':
             address = self.fetch()
-            return(self.read(address)+self.read(address+1)+self.registers['Y'])
+            return(self.read(address)*0x100+self.read(address+1)+self.registers['Y'])
         elif addressing == 'indirectAbsolute':
-            address = self.fetch_word()
-            return(self.read(address)+self.read(address+1))
+            address = self.fetch_word()+self.fetch_word()*0x100
+            return(self.read(address)+self.fetch()*0x100)
 
-    def exec(basename, opeland, mode):
+    def exec(self, basename, opeland, mode):
+        #print(basename+','+mode+' => '+opeland)
         if basename == 'LDA':
             if mode == 'immediate': self.registers['A'] = opeland
             else: self.registers['A'] = self.read(opeland)
@@ -274,8 +282,9 @@ class CPU:
             self.registers['P']['overflow'] = (data & 0b00100000 != 0)
 
         if basename == 'JMP':
-            if mode == 'immediate':data = opeland
-            else: data = self.read(opeland)
+            #if mode == 'immediate':data = opeland
+            #else: data = self.read(opeland)
+            data = opeland
             self.registers['PC'] = data
         if basename == 'JSR':
              if mode == 'immediate':data = opeland
@@ -360,27 +369,41 @@ class CPU:
 
     OPECODE_LIST = [
                     ['BRK','implied',7],['ORA','preIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['NOP','implied',3],['ORA','zeroPage',3],['ASL','zeroPage',5],['NOP','implied',5],['PHP','implied',3],['ORA','immediate',2],['ASL','accumulator',2],['NOP','implied',2],['NOP','implied',4],['ORA','absolute',4],['ASL','absolute',6],['NOP','implied',6],
-                    ['BPL','reload',2],['ORA','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['ORA','zeroPageX',4],['ASL','zeroPageX',6],['NOP','implied',6],['CLC','implied',2],['ORA','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['ORA','absoluteX',4],['ASL','absoluteX',6],['NOP','implied',7],
+                    ['BPL','relative',2],['ORA','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['ORA','zeroPageX',4],['ASL','zeroPageX',6],['NOP','implied',6],['CLC','implied',2],['ORA','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['ORA','absoluteX',4],['ASL','absoluteX',6],['NOP','implied',7],
                     ['JSR','absolute',6],['AND','postIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['BIT','zeroPage',3],['AND','zeroPage',3],['ROL','zeroPage',5],['NOP','implied',5],['PLP','implied',4],['AND','immediate',2],['ROL','absolute',2],['NOP','implied',2],['BIT,absolute',4],['AND','absolute',4],['ROL','absolute',6],['NOP','implied',6],
-                    ['BMI','reload',2],['AND','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['AND','zeroPageX',4],['ROL','zeroPageX',6],['NOP','implied',6],['SEC','implied',2],['AND','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['AND','absoluteX',4],['ROL','absoluteX',6],['NOP','implied',7],
+                    ['BMI','relative',2],['AND','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['AND','zeroPageX',4],['ROL','zeroPageX',6],['NOP','implied',6],['SEC','implied',2],['AND','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['AND','absoluteX',4],['ROL','absoluteX',6],['NOP','implied',7],
                     ['RTI','implied',6],['EOR','postIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['EOR','zeroPage',3],['LSR','zeroPage',5],['NOP','implied',5],['PHA','implied',3],['EOR','immediate',2],['LSR','accumulator',2],['NOP','implied',2],['JMP','absolute',3],['EOR','absolute',4],['LSR','absolute',6],['NOP','implied',6],
-                    ['BVC','reload',2],['EOR','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['EOR','zeroPageX',4],['LSR','zeroPageX',6],['NOP','implied',6],['CLI','implied',2],['EOR','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['EOR','absoluteX',,4],['LSR','absoluteX',6],['NOP','implied',7],
+                    ['BVC','relative',2],['EOR','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['EOR','zeroPageX',4],['LSR','zeroPageX',6],['NOP','implied',6],['CLI','implied',2],['EOR','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['EOR','absoluteX',4],['LSR','absoluteX',6],['NOP','implied',7],
                     ['RTS','implied',6],['ADC','postIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['NOP','implied',3],['ADC','zeroPage',3],['ROR','zeroPage',5],['NOP','implied',5],['PLA','implied',4],['ADC','immediate',2],['ROR','accumulator',2],['NOP','implied',2],['JMP','indirectAbsolute',5],['ADC','absolute',4],['ROR','absolute',6],['NOP','implied',6],
-                    ['BVS','reload',2],['ADC','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['ADC','zeroPageX',4],['ROR','zeroPageX',6],['NOP','implied',6],['SEL','implied',2],['ADC','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['ADC','absoluteX',4],['ROR','absoluteX',6],['NOP','implied',7],
+                    ['BVS','relative',2],['ADC','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['ADC','zeroPageX',4],['ROR','zeroPageX',6],['NOP','implied',6],['SEI','implied',2],['ADC','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['ADC','absoluteX',4],['ROR','absoluteX',6],['NOP','implied',7],
                     ['NOP','implied',2],['STA','preIndexedIndirect',6],['NOP','implied',2],['NOP','implied',6],['STY','zeroPage',3],['STA','zeroPage',3],['STX','zeroPage',3],['NOP','implied',3],['DEY','implied',2],['NOP','implied',2],['TXA','implied',2],['NOP','implied',2],['STY','absolute',4],['STA','absolute',4],['STX','absolute',4],['NOP','implied',4],
-                    ['BCC','reload',2],['STA','postIndexedIndirect',6],['NOP','implied',2],['NOP','implied',6],['STY','zeroPageX',4],['STA','zeroPageX',4],['STX','zeroPageY',4],['NOP','implied',4],['TYA','implied',2],['STA','absoluteY',4],['TXS','implied',2],['NOP','implied',5],['NOP','implied',5],['STA','absoluteX',4],['NOP','implied',5],['NOP','implied',5],
+                    ['BCC','relative',2],['STA','postIndexedIndirect',6],['NOP','implied',2],['NOP','implied',6],['STY','zeroPageX',4],['STA','zeroPageX',4],['STX','zeroPageY',4],['NOP','implied',4],['TYA','implied',2],['STA','absoluteY',4],['TXS','implied',2],['NOP','implied',5],['NOP','implied',5],['STA','absoluteX',4],['NOP','implied',5],['NOP','implied',5],
                     ['LDY','immediate',2],['LDA','postIndexedIndirect',6],['LDX','immediate',2],['NOP','implied',6],['LDY','zeroPage',3],['LDA','zeroPage',3],['LDX','zeroPage',3],['NOP','implied',3],['TAY','implied',2],['LDA','immediate',2],['TAX','implied',2],['NOP','implied',2],['LDY','absolute',4],['LDA','absolute',4],['LDX','absolute',4],['NOP','implied',4],
-                    ['BCS','reload',2],['LDA','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',5],['LDY','zeroPageX',4],['LDA','zeroPageX',4],['LDX''zeroPageY',4],['NOP','implied',4],['CLV','implied',2],['LDA','absoluteY',4],['TSX','implied',2],['NOP','implied',4],['LDY','absoluteX',4],['LDA','absoluteX',4],['LDX','absoluteY',4],['NOP','implied',4],
-                    ['CPY','immediate',2],['CMP','preIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['CPY','zeroPage'3],['CMP','zeroPage',3],['DEC','zeroPage',5],['NOP','implied',5],['INY','implied',2],['CMP','immediate',2],['DEX','implied',2],['NOP','implied',2],['CPY','absolute',4],['CMP','absolute',4],['DEC','absolute',6],['NOP','implied',6],
-                    ['BNE','reload',2],['CMP','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['CMP','zeroPageX',4],['DEC','zeroPageX',6],['NOP','implied',6],['CLD','implied',2],['CMP','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['CMP','absoluteX',4],['DEC','absoluteX',7],['NOP','implied',7],
+                    ['BCS','relative',2],['LDA','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',5],['LDY','zeroPageX',4],['LDA','zeroPageX',4],['LDX''zeroPageY',4],['NOP','implied',4],['CLV','implied',2],['LDA','absoluteY',4],['TSX','implied',2],['NOP','implied',4],['LDY','absoluteX',4],['LDA','absoluteX',4],['LDX','absoluteY',4],['NOP','implied',4],
+                    ['CPY','immediate',2],['CMP','preIndexedIndirect',6],['NOP','implied',2],['NOP','implied',8],['CPY','zeroPage',3],['CMP','zeroPage',3],['DEC','zeroPage',5],['NOP','implied',5],['INY','implied',2],['CMP','immediate',2],['DEX','implied',2],['NOP','implied',2],['CPY','absolute',4],['CMP','absolute',4],['DEC','absolute',6],['NOP','implied',6],
+                    ['BNE','relative',2],['CMP','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['CMP','zeroPageX',4],['DEC','zeroPageX',6],['NOP','implied',6],['CLD','implied',2],['CMP','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['CMP','absoluteX',4],['DEC','absoluteX',7],['NOP','implied',7],
                     ['CPX','immediate',2],['SBC','preIndexedIndirect',6],['NOP','implied',3],['NOP','implied',8],['CPX','zeroPage',3],['SBC','zeroPage',3],['INC','zeroPage',5],['NOP','implied',5],['INX','implied',2],['SBC','immediate',2],['NOP','implied',2],['NOP','implied',2],['CPX','absolute',4],['SBC','absolute',4],['INC','absolute',6],['NOP','implied',6],
-                    ['BEQ','reload',2],['SBC','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['SBC','zeroPageX',4],['INC','zeroPageX',6],['NOP','implied',6],['SED','implied',2],['SBC','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['SBC','absoluteX',4],['INC','absoluteX',7],['NOP','implied',7],
+                    ['BEQ','relative',2],['SBC','postIndexedIndirect',5],['NOP','implied',2],['NOP','implied',8],['NOP','implied',4],['SBC','zeroPageX',4],['INC','zeroPageX',6],['NOP','implied',6],['SED','implied',2],['SBC','absoluteY',4],['NOP','implied',2],['NOP','implied',7],['NOP','implied',4],['SBC','absoluteX',4],['INC','absoluteX',7],['NOP','implied',7],
                     ]
 
     def run(self):
+        t=time.time()
         opecode = self.fetch()
+        self.t1.append(time.time()-t)
+        t=time.time()
         basename, mode, cycle = self.OPECODE_LIST[opecode]
+        self.t2.append(time.time()-t)
+        t=time.time()
         opeland = self.fetch_opeland(mode)
+        self.t3.append(time.time()-t)
+        print(basename)
+        #print(opeland)
+        #print(mode)
+        #print('PC:'+str(self.registers['PC']))
+        #print(opeland)
+        t=time.time()
+        self.exec(basename, opeland, mode)
+        self.t4.append(time.time()-t)
         return(cycle)
 
 

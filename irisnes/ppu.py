@@ -29,18 +29,24 @@ class PPU:
         self.line = 0
         self.background = []
         self.registers = [0] * 8
+        self.building_line = 0
 
 
     def run(self, cycle):
         self.cycle += cycle
-        if self.line == 0: self.background = []
+        if self.line == 0:
+            self.background = []
+            self.building_line = 0
 
         if self.cycle >= 341:
             self.cycle -= 341
             self.line += 1
+            print('===========line:'+str(self.line)+'=========')
 
         if self.line <= 240 and self.line % 8 == 0:
-            self.build_background()
+            if self.building_line != self.line:
+                self.building_line = self.line
+                self.build_background()
 
         if self.line == 262:
             self.line = 0
