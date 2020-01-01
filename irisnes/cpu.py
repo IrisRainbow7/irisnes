@@ -1,11 +1,12 @@
 
 
 class CPU:
-    def __init__(self, cassette):
-        self.cassette = cassette
+    def __init__(self, nes):
+        self.nes = nes
+        self.bus = self.nes.cpu_bus
         self.set_default_registers()
         self.memory = []
-        self.program_memory = self.cassette.program_rom
+        self.program_memory = self.nes.cassette.program_rom
         self.wram = [0]*0x800
 
     def set_default_registers(self):
@@ -378,6 +379,9 @@ class CPU:
 
     def run(self):
         opecode = self.fetch()
+        basename, mode, cycle = self.OPECODE_LIST[opecode]
+        opeland = self.fetch_opeland(mode)
+        return(cycle)
 
 
 
