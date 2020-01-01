@@ -91,14 +91,22 @@ class CPU:
         return(self.read(0x100 | self.registers['SP']))
 
     def increment_data(self, address):
-        if address in list(range(0x8000,0xFFFF)):
+        if 0x8000 <= address and address <= 0xFFFF:
             self.program_memory[address-0x8000] += 1
+        elif address <= 0x7FF: #WRAM
+            self.wram[address] += 1
+        elif 0x800 <= address and address <= 0x1FFF: #WRAMミラー
+            self.wram[address-0x800] += 1
         else:
             pass
 
     def decrement_data(self, address):
-        if address in list(range(0x8000,0xFFFF)):
-            self.program_memory[address-0x8000] += 1
+        if 0x8000 <= address and address <= 0xFFFF:
+            self.program_memory[address-0x8000] -= 1
+        elif address <= 0x7FF: #WRAM
+            self.wram[address] -= 1
+        elif 0x800 <= address and address <= 0x1FFF: #WRAMミラー
+            self.wram[address-0x800] -= 1
         else:
             pass
 
@@ -116,16 +124,16 @@ class CPU:
         elif addressing == 'absolute': return(self.fetch_word())
         elif addressing == 'absoluteX': return(self.fetch_word()+self.registers['X'])
         elif addressing == 'absoluteY': return(self.fetch_word()+self.registers['Y'])
-        elif addressing == 'relative': return(self.fetch()+self.fetch())
+        elif addressing == 'relative': return(self.fetch())
         elif addressing == 'preIndexedIndirect':
             address = self.fetch()+self.registers['X']
-            return(self.read(address)+self.read(address+1)*0x00)
+            return(self.read(address)+self.read(address+1)*0x100)
         elif addressing == 'postIndexedIndirect':
             address = self.fetch()
             return(self.read(address)*0x100+self.read(address+1)+self.registers['Y'])
         elif addressing == 'indirectAbsolute':
-            address = self.fetch_word()+self.fetch_word()*0x100
-            return(self.read(address)+self.fetch()*0x100)
+            address = self.fetch_word()
+            return(self.read(address)+self.read(address+1)*0x100)
 
     def exec(self, basename, opeland, mode):
         #print(basename+','+mode+' => '+opeland)
@@ -172,7 +180,7 @@ class CPU:
             self.registers['SP'] = self.registers['X']
 
         if basename == 'ADC':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             overflow_flag = self.registers['A'] < 0x80
             self.registers['A'] += data + int(self.registers['P']['carry'])
@@ -181,29 +189,29 @@ class CPU:
             self.registers['P']['overflow'] = overflow_flag and self.registers['A'] >= 0x80
             self.registers['P']['carry'] = not overflow_flag and self.registers['A'] >= 0x80
         if basename == 'SBC':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
-            overflow_flag = self.registers['A'] < 0x80
             self.registers['A'] -= data + int(not self.registers['P']['carry'])
+            overflow_flag = self.registers['A'] < 0x80
             self.registers['P']['negative'] = self.registers['A'] > 0x80
             self.registers['P']['zero'] = not self.registers['P']['negative']
             self.registers['P']['overflow'] = overflow_flag and self.registers['A'] >= 0x80
             self.registers['P']['carry'] = not overflow_flag and self.registers['A'] >= 0x80
 
         if basename == 'AND':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             self.registers['A'] = self.registers['A'] & data
             self.registers['P']['negative'] = self.registers['A'] > 0x80
             self.registers['P']['zero'] = not self.registers['P']['negative']
         if basename == 'ORA':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             self.registers['A'] = self.registers['A'] | data
             self.registers['P']['negative'] = self.registers['A'] > 0x80
             self.registers['P']['zero'] = not self.registers['P']['negative']
         if basename == 'EOR':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             self.registers['A'] = self.registers['A'] ^ data
             self.registers['P']['negative'] = self.registers['A'] > 0x80
@@ -234,47 +242,47 @@ class CPU:
 
         if basename == 'BCC':
             if not self.registers['P']['carry']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BCS':
             if self.registers['P']['carry']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BEQ':
             if self.registers['P']['zero']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BNE':
             if not self.registers['P']['zero']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BVC':
             if not self.registers['P']['overflow']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BVS':
             if self.registers['P']['overflow']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BPL':
             if not self.registers['P']['negative']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
         if basename == 'BMI':
             if self.registers['P']['negative']:
-                self.registers['PC'] = opeland
+                self.registers['PC'] += self.read(opeland)
             else:
-                self.registers['PC'] += 2
+                self.registers['PC'] += 1
 
         if basename == 'BIT':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             data = data & self.registers['A']
             self.registers['P']['zero'] = (data == 0)
@@ -282,16 +290,13 @@ class CPU:
             self.registers['P']['overflow'] = (data & 0b00100000 != 0)
 
         if basename == 'JMP':
-            #if mode == 'immediate':data = opeland
-            #else: data = self.read(opeland)
-            data = opeland
-            self.registers['PC'] = data
+            self.registers['PC'] = opeland
         if basename == 'JSR':
-             if mode == 'immediate':data = opeland
-             else: data = self.read(opeland)
-             self.push((self.registers['PC'] & 0xFF00) >> 8)
-             self.push(self.registers['PC'] & 0x00FF)
-             self.registers['PC'] = data
+            if mode == 'immediate': data = opeland
+            else: data = self.read(opeland)
+            self.push((self.registers['PC'] & 0xFF00) >> 8)
+            self.push(self.registers['PC'] & 0x00FF)
+            self.registers['PC'] = data
         if basename == 'RTS':
             self.registers['PC'] = self.pop()*0x100 + self.pop() + 1
 
@@ -322,21 +327,33 @@ class CPU:
             self.registers['P']['carry'] = self.registers['Y']-opeland >= 0
 
         if basename == 'INC':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             self.increment_data(data)
+            self.registers['P']['negative'] = opeland+1 < 0
+            self.registers['P']['zero'] = opeland+1 == 0
         if basename == 'DEC':
-            if mode == 'immediate':data = opeland
+            if mode == 'immediate': data = opeland
             else: data = self.read(opeland)
             self.decrement_data(data)
+            self.registers['P']['negative'] = opeland-1 < 0
+            self.registers['P']['zero'] = opeland-1 == 0
         if basename == 'INX':
             self.registers['X'] += 1
+            self.registers['P']['negative'] = self.registers['X'] < 0
+            self.registers['P']['zero'] = self.registers['X'] == 0
         if basename == 'DEX':
             self.registers['X'] -= 1
+            self.registers['P']['negative'] = self.registers['X'] < 0
+            self.registers['P']['zero'] = self.registers['X'] == 0
         if basename == 'INY':
             self.registers['Y'] += 1
+            self.registers['P']['negative'] = self.registers['Y'] < 0
+            self.registers['P']['zero'] = self.registers['Y'] == 0
         if basename == 'DEY':
             self.registers['Y'] -= 1
+            self.registers['P']['negative'] = self.registers['Y'] < 0
+            self.registers['P']['zero'] = self.registers['Y'] == 0
 
         if basename == 'CLC':
             self.registers['P']['carry'] = False
@@ -397,9 +414,9 @@ class CPU:
         opeland = self.fetch_opeland(mode)
         self.t3.append(time.time()-t)
         print(basename)
-        #print(opeland)
+        print(opeland)
         #print(mode)
-        #print('PC:'+str(self.registers['PC']))
+        print('PC:'+str(self.registers['PC']))
         #print(opeland)
         t=time.time()
         self.exec(basename, opeland, mode)
