@@ -30,6 +30,11 @@ class PPU:
         self.background = []
         self.registers = [0] * 8
         self.building_line = 0
+        self.sprite_ram_address = 0
+        self.is_lower_vram_address = False
+        self.vram_address = 0x0000
+        self.vram_offset = 1
+
 
 
     def run(self, cycle):
@@ -41,7 +46,7 @@ class PPU:
         if self.cycle >= 341:
             self.cycle -= 341
             self.line += 1
-            print('===========line:'+str(self.line)+'=========')
+            #print('===========line:'+str(self.line)+'=========')
 
         if self.line <= 240 and self.line % 8 == 0:
             if self.building_line != self.line:
@@ -67,20 +72,57 @@ class PPU:
             attr_table_inner_y = attr_table_y // 2
             attr_table_inner_x = attr_table_x // 2
             attr_table_index = (attr_table_inner_x % 2) + (attr_table_inner_y % 2)*2
-            attr_table_data = (0x23C0 + attr_table_y*16 + attr_table_y)
-            attr_table_address = (attr_table_data & (0b11 << (attr_table_index*2))) >> (attr_table_index*2)
+            attr_table_data = (0x23C0 + attr_table_y*16 + attr_table_x)
+            palette_id = (attr_table_data & (0b11 << (attr_table_index*2))) >> (attr_table_index*2)
             sprite_number = self.bus.read(name_table_address)
             tile = self.nes.cassette.sprite(sprite_number)
-            palette_id = self.bus.read(attr_table_address)
             palette_address = 0x3F00 + palette_id*4
             palette_number = self.bus.read(palette_address)
             for i in range(len(tile)):
                 for j in range(len(tile[0])):
-                    tile[i][j] = self.COLORS[palette_number][tile[i][j]]
+                    tile[i][j] = np.array(self.COLORS[palette_number])*tile[i][j]
             data.append(tile)
         lines = np.hstack(data)
         self.background.append(lines)
 
+
+    def write(self, address, data):
+        if address == 0x0003:
+            self.write_sprite_ram_address(data)
+        elif address == 0x0004:
+            self.write_sprite_ram_data(data)
+        elif address == 0x0005:
+            self.write_scroll_data(data)
+        elif address == 0x0006:
+            self.write_vram_address(data)
+        elif address == 0x0007:
+            self.write_vram_data(data)
+        else:
+            self.registers[address] = data
+
+    def write_sprite_ram_address(self, data):
+        self.sprite_ram_address = data
+
+    def write_sprite_ram_data(self, data):
+        self.nes.bus.write_vram(self.sprite_ram_address, data)
+        self.sprite_ram_address += 1
+
+    def write_scroll_data(self, data):
+        #TODO
+        pass
+
+    def write_vram_address(self, data):
+        if self.is_lower_vram_address:
+            self.vram_address += data
+            self.is_lower_vram_address = False
+        else:
+            self.vram_address = data << 8
+            self.is_lower_vram_address = True
+
+    def write_vram_data(self, data):
+        #print(str(hex(self.vram_address))+'=>'+str(hex(data)))
+        self.bus.write_vram(self.vram_address, data)
+        self.vram_address += self.vram_offset
 
 
 

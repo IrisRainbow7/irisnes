@@ -15,17 +15,19 @@ class CPUBus:
             if len(self.nes.cassette.program_rom) <= 0x4000:
                 return(self.nes.cassette.program_rom[address-0xC000])
             else:
-                return(self.cassette.program_rom[address-0x8000])
+                return(self.nes.cassette.program_rom[address-0x8000])
         elif address >= 0x8000:
             return(self.nes.cassette.program_rom[address-0x8000])
+        else:
+            return(0)
 
-    def write(self, data, address):
+    def write(self, address, data):
         if address < 0x800:
             self.ram[address] = data
         elif address < 0x2000:
             self.ram[address-0x800] = data
         elif address < 0x2008:
-            self.nes.PPUBus.write(address-0x2000, data)
+            self.nes.ppu_bus.write(address-0x2000, data)
 
 class PPUBus:
 
@@ -40,9 +42,11 @@ class PPUBus:
             return(self.ram[address])
 
     def write(self, address, data):
-        if address < 8:
-            self.nes.ppu.registers[address] = data
+        if address < 0x0008:
+            self.nes.ppu.write(address, data)
         else:
             self.ram[address] = data
 
+    def write_vram(self, address, data):
+        self.ram[address] = data
 

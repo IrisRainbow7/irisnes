@@ -67,20 +67,10 @@ class CPU:
         return(upper*0x100 + lower)
 
     def read(self, address):
-        if 0x8000 <= address and address <= 0xFFFF:
-            return(self.program_memory[address-0x8000])
-        elif address <= 0x7FF: #WRAM
-            return(self.wram[address])
-        elif 0x800 <= address and address <= 0x1FFF: #WRAMミラー
-            return(self.wram[address-0x800])
-        else:
-            return(0x0000)
+        return(self.bus.read(address))
 
-    def write(self,address, data):
-        if address in list(range(0,0x7FF)): #WRAM
-            self.wram[address] = data
-        elif address in list(range(0x800,0x1FFF)): #WRAMミラー
-            self.wram[address-0x800] = data
+    def write(self, address, data):
+        self.bus.write(address, data)
 
     def push(self, data):
         self.write(0x100 | self.registers['SP'], data)
@@ -135,6 +125,13 @@ class CPU:
             address = self.fetch_word()
             return(self.read(address)+self.read(address+1)*0x100)
 
+    def convert_from_two_complement(self, bits):
+        if bits < 128:
+            decimal = bits
+        else:
+            decimal = -1*(int(''.join([{'1':'0','0':'1'}[i] for i in bin(bits)[2:]]),2)+1)
+        return(decimal)
+
     def exec(self, basename, opeland, mode):
         #print(basename+','+mode+' => '+opeland)
         if basename == 'LDA':
@@ -154,11 +151,11 @@ class CPU:
             self.registers['P']['zero'] = not self.registers['P']['negative']
 
         if basename == 'STA':
-            self.registers['A'] = opeland
+            self.write(opeland, self.registers['A'])
         if basename == 'STX':
-            self.registers['X'] = opeland
+            self.write(opeland, self.registers['X'])
         if basename == 'STY':
-            self.registers['Y'] = opeland
+            self.write(opeland, self.registers['Y'])
 
         if basename == 'TAX':
             self.registers['X'] = self.registers['A']
@@ -242,44 +239,28 @@ class CPU:
 
         if basename == 'BCC':
             if not self.registers['P']['carry']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BCS':
             if self.registers['P']['carry']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BEQ':
             if self.registers['P']['zero']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BNE':
             if not self.registers['P']['zero']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BVC':
             if not self.registers['P']['overflow']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BVS':
             if self.registers['P']['overflow']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BPL':
             if not self.registers['P']['negative']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
         if basename == 'BMI':
             if self.registers['P']['negative']:
-                self.registers['PC'] += self.read(opeland)
-            else:
-                self.registers['PC'] += 1
+                self.registers['PC'] += self.convert_from_two_complement(opeland)
 
         if basename == 'BIT':
             if mode == 'immediate': data = opeland
@@ -413,10 +394,10 @@ class CPU:
         t=time.time()
         opeland = self.fetch_opeland(mode)
         self.t3.append(time.time()-t)
-        print(basename)
-        print(opeland)
+        #print(basename)
+        #print(opeland)
         #print(mode)
-        print('PC:'+str(self.registers['PC']))
+        #print('PC:'+str(self.registers['PC']))
         #print(opeland)
         t=time.time()
         self.exec(basename, opeland, mode)
