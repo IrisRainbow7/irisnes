@@ -511,13 +511,15 @@ class CPU:
             self.push(self.registers['A'])
         if basename == 'PLA':
             self.registers['A'] = self.pop()
-            self.registers['P']['negative'] = self.registers['A'] > 0x80
+            self.registers['P']['negative'] = self.registers['A'] >= 0x80
             self.registers['P']['zero'] = self.registers['A'] == 0
         if basename == 'PHP':
             self.push(self.get_p_register())
         if basename == 'PLP':
+            break_flag = self.registers['P']['break']
             self.set_p_register(self.pop())
             self.registers['P']['reserved'] = True
+            self.registers['P']['break'] = break_flag
 
         if basename == 'NOP':
             pass
@@ -569,7 +571,7 @@ class CPU:
         print('P: '+hex(self.get_p_register()))
         #print('SP: '+hex(self.registers['SP']))
         #return(cycle)
-        return(basename)
+        return(self.get_p_register())
 
 
 
