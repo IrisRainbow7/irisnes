@@ -72,15 +72,19 @@ class PPU:
             attr_table_inner_y = attr_table_y // 2
             attr_table_inner_x = attr_table_x // 2
             attr_table_index = (attr_table_inner_x % 2) + (attr_table_inner_y % 2)*2
-            attr_table_data = (0x23C0 + attr_table_y*16 + attr_table_x)
+            attr_table_address = (0x23C0 + attr_table_y*16 + attr_table_x)
+            attr_table_data = self.bus.read(attr_table_address)
             palette_id = (attr_table_data & (0b11 << (attr_table_index*2))) >> (attr_table_index*2)
             sprite_number = self.bus.read(name_table_address)
             tile = self.nes.cassette.sprite(sprite_number)
             palette_address = 0x3F00 + palette_id*4
-            palette_number = self.bus.read(palette_address)
+            palette_data = self.bus.read_palette(palette_address)
             for i in range(len(tile)):
                 for j in range(len(tile[0])):
-                    tile[i][j] = np.array(self.COLORS[palette_number])*tile[i][j]
+                    tile[i][j] = self.COLORS[palette_data[tile[i][j]]]
+            #if self.building_line == 104 and tile_x==9:
+            #    print(attr_table_data)
+            #    print([self.bus.read_palette(i) for i in [0x3f00+j*4 for j in range(4)]])
             data.append(tile)
         lines = np.hstack(data)
         self.background.append(lines)
