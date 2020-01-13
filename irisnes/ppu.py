@@ -34,7 +34,22 @@ class PPU:
         self.is_lower_vram_address = False
         self.vram_address = 0x0000
         self.vram_offset = 1
-
+        self.NMI_VBlank = False
+        self.sprite_size = 0
+        self.background_table_address = 0
+        self.sprite_table_address = 0
+        self. PPU_memory_address_increment = 1
+        self.name_table_address0 = 0
+        self.name_table_address1 = 0
+        self.background_color = 0
+        self.sprite_enable = True
+        self.background_enable = True
+        self.sprite_mask = 1
+        self.background_mask = 1
+        self.display_type = 0
+        self.is_vblank = False
+        self.is_sprite_hit = False
+        self.scan_line_sprite = 0
 
 
     def run(self, cycle):
@@ -42,6 +57,7 @@ class PPU:
         if self.line == 0:
             self.background = []
             self.building_line = 0
+            self.is_vblank = False
 
         if self.cycle >= 341:
             self.cycle -= 341
@@ -53,9 +69,12 @@ class PPU:
                 self.building_line = self.line
                 self.build_background()
 
+        if self.line > 240:
+            self.is_vblank = True
+
         if self.line == 262:
             self.line = 0
-            self.background = np.vstack(self.background)
+            self.background = np.concatenate(self.background)
             return(self.background)
 
         return([])
@@ -79,19 +98,25 @@ class PPU:
             tile = self.nes.cassette.sprite(sprite_number)
             palette_address = 0x3F00 + palette_id*4
             palette_data = self.bus.read_palette(palette_address)
-            for i in range(len(tile)):
-                for j in range(len(tile[0])):
+            range_max1=len(tile)
+            range_max2=len(tile[0])
+            for i in range(range_max1):
+                for j in range(range_max2):
                     tile[i][j] = self.COLORS[palette_data[tile[i][j]]]
             #if self.building_line == 104 and tile_x==9:
             #    print(attr_table_data)
             #    print([self.bus.read_palette(i) for i in [0x3f00+j*4 for j in range(4)]])
             data.append(tile)
-        lines = np.hstack(data)
+        lines = np.concatenate(data,1)
         self.background.append(lines)
 
 
     def write(self, address, data):
-        if address == 0x0003:
+        if address == 0x0000:
+            self.set_control_register1(data)
+        elif address == 0x0001:
+            self.set_control_register2(data)
+        elif address == 0x0003:
             self.write_sprite_ram_address(data)
         elif address == 0x0004:
             self.write_sprite_ram_data(data)
@@ -103,6 +128,25 @@ class PPU:
             self.write_vram_data(data)
         else:
             self.registers[address] = data
+
+    def set_control_register1(self, data):
+        data = bin(data)[2:].zfill(8)
+        self.NMI_VBlank = bool(data[7])
+        self.sprite_size = int(data[5])
+        self.background_table_address = int(data[4])
+        self.sprite_table_address = int(data[3])
+        self. PPU_memory_address_increment = int(data[2])*31+1
+        self.name_table_address0 = int(data[0])
+        self.name_table_address1 = int(data[1])
+
+    def set_control_register2(self,data):
+        data = bin(data)[2:].zfill(8)
+        self.background_color = int(data[5:8],2)
+        self.sprite_enable = bool(data[4])
+        self.background_enable = bool(data[3])
+        self.sprite_mask = int(data[2])
+        self.background_mask = int(data[1])
+        self.display_type = int(data[0])
 
     def write_sprite_ram_address(self, data):
         self.sprite_ram_address = data
@@ -129,4 +173,14 @@ class PPU:
         self.vram_address += self.vram_offset
 
 
-
+    def read(self, address):
+        if address == 0x0002:
+            value = 0
+            if self.is_vblank: value += 128
+            if self.is_sprite_hit: value += 64
+            if self.scan_line_sprite>8: value += 32
+            return(value)
+        elif address == 0x0007:
+            return(0)
+        else:
+            return(self.registers[address])

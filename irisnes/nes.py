@@ -1,8 +1,10 @@
 import irisnes
-from PIL import Image
+from PIL import Image, ImageTk
 import numpy as np
 import sys
 import time
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 class NES:
 
@@ -15,6 +17,12 @@ class NES:
         self.ppu = irisnes.PPU(self)
 
     def start(self):
+        fig = plt.figure()
+        ani = animation.FuncAnimation(fig, self.make_screen, interval=1000)
+        plt.show()
+
+    def make_screen(self, _):
+        plt.cla()
         t1=[]
         t2=[]
         while(True):
@@ -27,10 +35,13 @@ class NES:
             t2.append(time.time()-t)
             if len(image) > 0:
                 Image.fromarray(np.uint8(image)).save('screen.png')
+                plt.imshow(image)
+                print('s')
+                return()
                 print(sum(t1)/len(t1))
                 print(sum(t2)/len(t2))
                 print(sum(self.cpu.t1)/len(self.cpu.t1))
                 print(sum(self.cpu.t2)/len(self.cpu.t2))
                 print(sum(self.cpu.t3)/len(self.cpu.t3))
                 print(sum(self.cpu.t4)/len(self.cpu.t4))
-                sys.exit()
+                return()

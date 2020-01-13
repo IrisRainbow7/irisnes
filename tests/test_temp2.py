@@ -5,7 +5,7 @@ import os
 class TestTemp(unittest.TestCase):
     def test_temp(self):
         nes = irisnes.NES('nestest.nes')
-        n = 140
+        n = 0
         for i in range(n):
             nes.cpu.run()
         for i in range(10000):

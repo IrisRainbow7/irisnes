@@ -21,7 +21,7 @@ class CPU:
                                 'negative': False,
                                 'overflow': False,
                                 'reserved': True,
-                                'break': False, #True
+                                'break': True,
                                 'decimal': False,
                                 'interrupt': True,
                                 'zero': False,
@@ -48,7 +48,6 @@ class CPU:
     def reset(self):
         self.set_default_registers()
         self.registers['PC'] = self.read_word(0xFFFC)
-        self.registers['PC'] = 0xC000
 
     def read_word(self, address):
         """
@@ -182,7 +181,7 @@ class CPU:
             self.registers['P']['negative'] = self.registers['X'] >= 0x80
             self.registers['P']['zero'] = self.registers['X']==0
         if basename == 'TXS':
-            self.registers['SP'] = self.registers['X']
+            self.registers['SP'] = self.registers['X']+0x0100
 
         if basename == 'ADC':
             if mode == 'immediate': data = opeland
@@ -548,30 +547,30 @@ class CPU:
         print(hex(self.registers['PC']),end='  ')
         t=time.time()
         opecode = self.fetch()
+        print(hex(opecode), end=' ')
         self.t1.append(time.time()-t)
         t=time.time()
         basename, mode, cycle = self.OPECODE_LIST[opecode]
         print(basename,end='  ')
+        #print(basename)
         #print(mode)
         self.t2.append(time.time()-t)
         t=time.time()
         opeland = self.fetch_opeland(mode)
         self.t3.append(time.time()-t)
         #print(opeland)
-        if mode in ['immediate', 'implied', 'absolute', 'accumulator','postIndexedIndirect','indirectAbsolute']:
-            print(hex(opeland),end='    ')
-        else:
+        print(hex(opeland),end='  =  ')
+        if mode not in ['immediate', 'implied', 'accumulator','postIndexedIndirect','indirectAbsolute']:
             print(hex(self.read(opeland)),end='    ')
         t=time.time()
         self.exec(basename, opeland, mode)
         self.t4.append(time.time()-t)
         print('A: '+hex(self.registers['A']),end='  ')
-        print('Y: '+hex(self.registers['Y']),end='  ')
+        #print('Y: '+hex(self.registers['Y']),end='  ')
         print('X: '+hex(self.registers['X']),end='  ')
         print('P: '+hex(self.get_p_register()))
         #print('SP: '+hex(self.registers['SP']))
-        #return(cycle)
-        return(self.get_p_register())
+        return(cycle)
 
 
 

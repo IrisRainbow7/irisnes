@@ -59,7 +59,7 @@ class PPUBus:
 
     def read(self, address):
         if address < 8:
-            return(self.nes.ppu.registers[address])
+            return(self.nes.ppu.read(address))
         else:
             return(self.ram[address])
 
