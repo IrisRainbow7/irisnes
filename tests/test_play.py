@@ -4,7 +4,8 @@ import os
 
 class TestPlay(unittest.TestCase):
     def test_play(self):
-        nes = irisnes.NES('nestest.nes')
+        file_name = 'oam3.nes'
+        nes = irisnes.NES(file_name)
 
 
         nes.start()

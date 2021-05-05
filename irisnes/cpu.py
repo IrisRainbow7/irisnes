@@ -48,6 +48,7 @@ class CPU:
     def reset(self):
         self.set_default_registers()
         self.registers['PC'] = self.read_word(0xFFFC)
+        #self.registers['PC'] = 0xC000
 
     def read_word(self, address):
         """
@@ -177,7 +178,7 @@ class CPU:
             self.registers['P']['negative'] = self.registers['A'] >= 0x80
             self.registers['P']['zero'] = self.registers['A']==0
         if basename == 'TSX':
-            self.registers['X'] = self.registers['SP']
+            self.registers['X'] = self.registers['SP'] - 0x100
             self.registers['P']['negative'] = self.registers['X'] >= 0x80
             self.registers['P']['zero'] = self.registers['X']==0
         if basename == 'TXS':
@@ -418,7 +419,10 @@ class CPU:
             self.registers['P']['interrupt'] = True
             self.registers['PC'] = self.read_word(0xFFFE)
         if basename == 'RTI':
+            break_flag = self.registers['P']['break']
             self.set_p_register(self.pop())
+            self.registers['P']['reserved'] = True
+            self.registers['P']['break'] = break_flag
             self.registers['PC'] = self.pop() + (self.pop()<<8)
 
         if basename == 'CMP':
@@ -513,7 +517,9 @@ class CPU:
             self.registers['P']['negative'] = self.registers['A'] >= 0x80
             self.registers['P']['zero'] = self.registers['A'] == 0
         if basename == 'PHP':
+            self.registers['P']['break'] = True
             self.push(self.get_p_register())
+            self.registers['P']['break'] = False
         if basename == 'PLP':
             break_flag = self.registers['P']['break']
             self.set_p_register(self.pop())
@@ -544,32 +550,38 @@ class CPU:
                     ]
 
     def run(self):
-        print(hex(self.registers['PC']),end='  ')
+        #gsddffgh=input()
+        #print(hex(self.registers['PC']),end='  ')
         t=time.time()
         opecode = self.fetch()
-        print(hex(opecode), end=' ')
+        #print(hex(opecode), end=' ')
         self.t1.append(time.time()-t)
         t=time.time()
         basename, mode, cycle = self.OPECODE_LIST[opecode]
-        print(basename,end='  ')
+        #print(basename,end='  ')
         #print(basename)
         #print(mode)
         self.t2.append(time.time()-t)
         t=time.time()
         opeland = self.fetch_opeland(mode)
         self.t3.append(time.time()-t)
-        #print(opeland)
-        print(hex(opeland),end='  =  ')
-        if mode not in ['immediate', 'implied', 'accumulator','postIndexedIndirect','indirectAbsolute']:
-            print(hex(self.read(opeland)),end='    ')
+        #print(hex(opeland))
+        #print(hex(opeland), end='\n')
+        #print(hex(opeland),end='  =  ')
+        #if mode not in ['immediate', 'implied', 'accumulator','postIndexedIndirect','indirectAbsolute']:
+        #    print(hex(self.read(opeland)),end='    ')
         t=time.time()
         self.exec(basename, opeland, mode)
         self.t4.append(time.time()-t)
-        print('A: '+hex(self.registers['A']),end='  ')
+        #print('A: '+hex(self.registers['A']),end='  ')
         #print('Y: '+hex(self.registers['Y']),end='  ')
-        print('X: '+hex(self.registers['X']),end='  ')
-        print('P: '+hex(self.get_p_register()))
-        #print('SP: '+hex(self.registers['SP']))
+        #print('X: '+hex(self.registers['X']),end='  ')
+        #print('Y: '+hex(self.registers['Y']),end='  ')
+        #print('P: '+hex(self.get_p_register()), end ='  ')
+        #print('SP: '+hex(self.registers['SP']-0x100))
+        #print()
+        #return(self.registers['PC'])
+        #return([self.registers['PC'],self.registers['A'], self.registers['X'], self.registers['Y'], self.get_p_register(), self.registers['SP']-0x100])
         return(cycle)
 
 

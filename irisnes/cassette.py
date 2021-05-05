@@ -13,6 +13,8 @@ class Cassette:
         self.character_rom = self.cassette_data[character_rom_start:character_rom_end]
 
     def sprite(self, n):
+        #if len(self.character_rom) == 0:
+        #    return([[0]*8 for _ in range(8)])
         sprite_data = self.character_rom[n * 0x10:(n+1) * 0x10]
         la = []
         lb = []

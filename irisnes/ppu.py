@@ -38,7 +38,7 @@ class PPU:
         self.sprite_size = 0
         self.background_table_address = 0
         self.sprite_table_address = 0
-        self. PPU_memory_address_increment = 1
+        self.PPU_memory_address_increment = 1
         self.name_table_address0 = 0
         self.name_table_address1 = 0
         self.background_color = 0
@@ -50,6 +50,7 @@ class PPU:
         self.is_vblank = False
         self.is_sprite_hit = False
         self.scan_line_sprite = 0
+        self.sprite_ram = [0]*0x100
 
 
     def run(self, cycle):
@@ -75,9 +76,40 @@ class PPU:
         if self.line == 262:
             self.line = 0
             self.background = np.concatenate(self.background)
+            self.build_sprite()
             return(self.background)
 
         return([])
+
+
+    def build_sprite(self):
+        for sprite_address in range(0x000, 0x100, 4):
+            data = self.read_sprite_ram(sprite_address)
+            bits = data[2]
+            if bits & 0b00100000 != 0:
+                continue
+            x = data[3]
+            y = data[0] + 1
+            if y > 247 or x > 247:
+                continue #TODO
+            tile = self.nes.cassette.sprite(data[1])
+            #if data[1] != 0:
+            #    print('%', data)
+            #    print(tile)
+            palette_id = (bits & 0b00000010) + (bits & 0b00000001) + 4
+            palette_address = 0x3F00 + palette_id*4
+            palette_data = self.bus.read_palette(palette_address)
+            range_max1=len(tile)
+            range_max2=len(tile[0])
+            for i in range(range_max1):
+                for j in range(range_max2):
+                    tile[i][j] = self.COLORS[palette_data[tile[i][j]]]
+            if bits & 0b10000000 != 0:
+                tile = np.flipud(tile)
+            if bits & 0b01000000 != 0:
+                tile = np.fliplr(tile)
+            tile = np.array(tile)
+            self.background[x:x+8, y:y+8] = tile
 
 
     def build_background(self):
@@ -112,6 +144,7 @@ class PPU:
 
 
     def write(self, address, data):
+        #if not address==7:print('*'+str(address))
         if address == 0x0000:
             self.set_control_register1(data)
         elif address == 0x0001:
@@ -135,7 +168,7 @@ class PPU:
         self.sprite_size = int(data[5])
         self.background_table_address = int(data[4])
         self.sprite_table_address = int(data[3])
-        self. PPU_memory_address_increment = int(data[2])*31+1
+        self.PPU_memory_address_increment = int(data[2])*31+1
         self.name_table_address0 = int(data[0])
         self.name_table_address1 = int(data[1])
 
@@ -149,10 +182,13 @@ class PPU:
         self.display_type = int(data[0])
 
     def write_sprite_ram_address(self, data):
+        print('&&&')
         self.sprite_ram_address = data
 
     def write_sprite_ram_data(self, data):
-        self.nes.bus.write_vram(self.sprite_ram_address, data)
+        print('***')
+        print('+', self.sprite_ram_address)
+        self.sprite_ram[self.sprite_ram_address] = data
         self.sprite_ram_address += 1
 
     def write_scroll_data(self, data):
@@ -180,7 +216,12 @@ class PPU:
             if self.is_sprite_hit: value += 64
             if self.scan_line_sprite>8: value += 32
             return(value)
+        elif address == 0x0004:
+            return(self.sprite_ram(self.sprite_ram_address))
         elif address == 0x0007:
             return(0)
         else:
             return(self.registers[address])
+
+    def read_sprite_ram(self, address):
+        return(self.sprite_ram[address:address+4])

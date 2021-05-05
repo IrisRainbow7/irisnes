@@ -3,14 +3,26 @@ class CPUBus:
     def __init__(self, nes):
         self.nes = nes
         self.ram = [0]*0x800
+        self.write_buffer = 0x00
+        self.reading_status = 0
+        self.controller_status = [False]*8
+
+    def reset_reading_status(self):
+        #print('!!!!')
+        self.reading_status = 0
+        self.controller_status = list(self.nes.key_status.values())
 
     def read(self, address):
         if address < 0x800:
             return(self.ram[address])
         elif address < 0x2000:
             return(self.ram[address-0x800])
-        elif address <= 0x4000:
+        elif address < 0x4000:
             return(self.nes.ppu_bus.read((address-0x2000)%8))
+        elif address == 0x4016:
+            #print('key read')
+            self.reading_status += 1
+            return(self.controller_status[self.reading_status-1])
         elif address >= 0xC000:
             if len(self.nes.cassette.program_rom) <= 0x4000:
                 return(self.nes.cassette.program_rom[address-0xC000])
@@ -28,6 +40,12 @@ class CPUBus:
             self.ram[address-0x800] = data
         elif address < 0x2008:
             self.nes.ppu_bus.write(address-0x2000, data)
+        elif address == 0x4014:
+            self.nes.dma_start(data)
+        elif address == 0x4016:
+            if self.write_buffer == 0x1 and data == 0x0:
+                self.reset_reading_status()
+            self.write_buffer = data
 
     def increment_data(self, address):
         if address <= 0x7FF: #WRAM
